@@ -1,24 +1,43 @@
 import streamlit as st
 import joblib
-import numpy as np
+import pandas as pd
+from geopy.distance import geodesic
+from datetime import datetime
 
 # Load trained model
-model = joblib.load("cab_price_predictor.pkl")
+model = joblib.load("cab_fare_weather_model.pkl")
 
-st.set_page_config(page_title="Cab Price Prediction", page_icon="🚖")
+st.title("🚕 Cab Fare Prediction with Weather Data")
 
-st.title("🚖 Cab Price Prediction Based on Weather & Time")
-st.write("Predict Uber/Lyft ride prices using distance, surge, time, and weather conditions.")
+# User inputs
+pickup_lat = st.number_input("Pickup Latitude", value=40.7128, format="%.6f")
+pickup_lon = st.number_input("Pickup Longitude", value=-74.0060, format="%.6f")
+drop_lat = st.number_input("Drop Latitude", value=40.7306, format="%.6f")
+drop_lon = st.number_input("Drop Longitude", value=-73.9352, format="%.6f")
 
-# Input fields
-distance = st.number_input("📏 Distance (miles)", min_value=0.1, step=0.1)
-hour = st.slider("🕒 Hour of Day", 0, 23, 9)
-surge = st.selectbox("⚡ Surge Multiplier", [1.0, 1.25, 1.5, 2.0])
-temp = st.number_input("🌡️ Temperature (°C)", step=1.0)
-rain = st.radio("☔ Is it raining?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
+ride_time = st.datetime_input("Ride Date & Time", value=datetime.now())
+
+temp = st.number_input("Temperature (°C)", value=25.0)
+rain = st.number_input("Rain Level (0 if none)", value=0.0)
+clouds = st.slider("Cloud Cover (%)", 0, 100, 40)
 
 # Prediction button
-if st.button("🔮 Predict Price"):
-    features = np.array([[distance, hour, surge, temp, rain]])
-    prediction = model.predict(features)[0]
-    st.success(f"Estimated Ride Price: **${round(prediction, 2)}**")
+if st.button("Predict Fare"):
+    # Feature engineering
+    distance = geodesic((pickup_lat, pickup_lon), (drop_lat, drop_lon)).km
+    hour = ride_time.hour
+    day = ride_time.weekday()
+    
+    # DataFrame for model
+    X_new = pd.DataFrame([{
+        "distance": distance,
+        "hour": hour,
+        "day": day,
+        "temp": temp,
+        "rain": rain,
+        "clouds": clouds
+    }])
+    
+    # Prediction
+    predicted_fare = model.predict(X_new)
+    st.success(f"Predicted Cab Fare: ${predicted_fare[0]:.2f}")
